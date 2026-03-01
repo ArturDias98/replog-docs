@@ -66,12 +66,17 @@ flowchart TB
 
 ### Component Responsibilities
 
-| Component | Responsibility |
-|---|---|
-| **Data Services** (existing) | Apply mutations to IndexedDB immediately. Record each mutation in the sync queue. |
-| **Sync Queue** (new) | Stores pending change events in IndexedDB (`sync_queue` object store). |
-| **SyncService** (new) | Manages online/offline detection, pushes queued changes, pulls server state, triggers merges. |
-| **Backend Sync Engine** (new) | Receives change events, applies them to the DB, resolves conflicts, returns merged state. Manages sync metadata (`createdAt`, `updatedAt`, `deletedAt`) server-side. |
+```mermaid
+flowchart LR
+    subgraph existing["Existing"]
+        DS["<b>Data Services</b><br/>Apply mutations to IndexedDB<br/>Record each mutation in sync queue"]
+    end
+    subgraph new["New"]
+        SQ["<b>Sync Queue</b><br/>Stores pending change events<br/>in IndexedDB sync_queue store"]
+        SS["<b>SyncService</b><br/>Online/offline detection<br/>Push changes, pull state, merge"]
+        BE["<b>Backend Sync Engine</b><br/>Receive events, apply to DB<br/>Resolve conflicts, return state<br/>Manage sync metadata server-side"]
+    end
+```
 
 ---
 
@@ -123,40 +128,52 @@ class SyncQueueService {
 
 #### WorkoutDataService
 
-| Method | Action | data payload |
-|---|---|---|
-| `addWorkout()` | `CREATE` | `{ id, title, date, userId, orderIndex }` |
-| `updateWorkout()` | `UPDATE` | `{ id, title, date, orderIndex }` |
-| `deleteWorkout()` | `DELETE` | `{ id }` |
-| `reorderWorkouts()` | `UPDATE` | `{ id, orderIndex }` for each affected workout |
+```mermaid
+flowchart LR
+    subgraph WorkoutDataService
+        A["addWorkout()"] -->|CREATE| A1["id, title, date, userId, orderIndex"]
+        B["updateWorkout()"] -->|UPDATE| B1["id, title, date, orderIndex"]
+        C["deleteWorkout()"] -->|DELETE| C1["id"]
+        D["reorderWorkouts()"] -->|UPDATE| D1["id, orderIndex<br/>for each affected workout"]
+    end
+```
 
 #### MuscleGroupService
 
-| Method | Action | data payload |
-|---|---|---|
-| `addMuscleGroup()` | `CREATE` | `{ id, workoutId, title, date, orderIndex }` |
-| `addMuscleGroups()` | `CREATE` (one per group) | `{ id, workoutId, title, date, orderIndex }` each |
-| `updateMuscleGroup()` | `UPDATE` | `{ id, workoutId, title, date, orderIndex }` |
-| `deleteMuscleGroup()` | `DELETE` | `{ id, workoutId }` |
-| `reorderMuscleGroups()` | `UPDATE` | `{ id, workoutId, orderIndex }` for each affected group |
+```mermaid
+flowchart LR
+    subgraph MuscleGroupService
+        A["addMuscleGroup()"] -->|CREATE| A1["id, workoutId, title, date, orderIndex"]
+        B["addMuscleGroups()"] -->|"CREATE (each)"| B1["id, workoutId, title, date, orderIndex"]
+        C["updateMuscleGroup()"] -->|UPDATE| C1["id, workoutId, title, date, orderIndex"]
+        D["deleteMuscleGroup()"] -->|DELETE| D1["id, workoutId"]
+        E["reorderMuscleGroups()"] -->|UPDATE| E1["id, workoutId, orderIndex<br/>for each affected group"]
+    end
+```
 
 #### ExerciseService
 
-| Method | Action | data payload |
-|---|---|---|
-| `addExercise()` | `CREATE` | `{ id, workoutId, muscleGroupId, title, orderIndex }` |
-| `addExercises()` | `CREATE` (one per exercise) | `{ id, workoutId, muscleGroupId, title, orderIndex }` each |
-| `updateExercise()` | `UPDATE` | `{ id, workoutId, muscleGroupId, title, orderIndex }` |
-| `deleteExercise()` | `DELETE` | `{ id, workoutId, muscleGroupId }` |
-| `reorderExercises()` | `UPDATE` | `{ id, workoutId, muscleGroupId, orderIndex }` for each affected exercise |
+```mermaid
+flowchart LR
+    subgraph ExerciseService
+        A["addExercise()"] -->|CREATE| A1["id, workoutId, muscleGroupId,<br/>title, orderIndex"]
+        B["addExercises()"] -->|"CREATE (each)"| B1["id, workoutId, muscleGroupId,<br/>title, orderIndex"]
+        C["updateExercise()"] -->|UPDATE| C1["id, workoutId, muscleGroupId,<br/>title, orderIndex"]
+        D["deleteExercise()"] -->|DELETE| D1["id, workoutId, muscleGroupId"]
+        E["reorderExercises()"] -->|UPDATE| E1["id, workoutId, muscleGroupId,<br/>orderIndex for each"]
+    end
+```
 
 #### LogService
 
-| Method | Action | data payload |
-|---|---|---|
-| `addLog()` | `CREATE` | `{ id, workoutId, muscleGroupId, exerciseId, numberReps, maxWeight, date }` |
-| `updateLog()` | `UPDATE` | `{ id, workoutId, muscleGroupId, exerciseId, numberReps, maxWeight }` |
-| `deleteLog()` | `DELETE` | `{ id, workoutId, muscleGroupId, exerciseId }` |
+```mermaid
+flowchart LR
+    subgraph LogService
+        A["addLog()"] -->|CREATE| A1["id, workoutId, muscleGroupId,<br/>exerciseId, numberReps, maxWeight, date"]
+        B["updateLog()"] -->|UPDATE| B1["id, workoutId, muscleGroupId,<br/>exerciseId, numberReps, maxWeight"]
+        C["deleteLog()"] -->|DELETE| C1["id, workoutId,<br/>muscleGroupId, exerciseId"]
+    end
+```
 
 ### 3.5 Example Queue
 
@@ -244,13 +261,14 @@ if (navigator.onLine && this.authService.isAuthenticated()) {
 
 ### 4.3 Sync Trigger Points
 
-| Trigger | Action |
-|---|---|
-| App starts + user is authenticated + online | `sync()` |
-| Browser fires `online` event + user is authenticated | `sync()` |
-| User logs in for the first time on this device | `sync()` |
-| User manually triggers sync (pull-to-refresh, sync button) | `sync()` |
-| Periodic interval (optional, e.g., every 5 minutes while online) | `sync()` |
+```mermaid
+flowchart LR
+    A["App starts +<br/>authenticated + online"] --> S["sync()"]
+    B["Browser 'online' event +<br/>authenticated"] --> S
+    C["User logs in for<br/>first time on device"] --> S
+    D["User manually triggers<br/>(pull-to-refresh, sync button)"] --> S
+    E["Periodic interval<br/>(every 5 min while online)"] --> S
+```
 
 ### 4.4 Sync Lock
 
@@ -382,272 +400,13 @@ The `workouts` array matches the existing `WorkOutGroup[]` structure, so the cli
 
 ### 5.3 Entity Sync Operations (Backend Processing)
 
-The backend stores each workout as a single DynamoDB document containing the full nested hierarchy (`workout → muscleGroup[] → exercises[] → log[]`). This means **all entity mutations resolve to reading and writing a workout item**. Child entity changes require the backend to locate the parent workout, navigate to the nested object, apply the change, and save the updated document.
-
-All child entity payloads include `workoutId`, enabling direct lookup of the parent workout document:
-
-- **muscleGroup**: `data.workoutId` → direct `GetItem` by partition key.
-- **exercise**: `data.workoutId` → direct `GetItem`, then find muscle group by `data.muscleGroupId` in `muscleGroup[]`.
-- **log**: `data.workoutId` → direct `GetItem`, then find muscle group by `data.muscleGroupId` in `muscleGroup[]`, then find exercise by `data.exerciseId` in `exercises[]`.
-
----
-
-#### 5.3.1 Workout
-
-| Action | Backend Processing |
-|---|---|
-| **CREATE** | Insert a new DynamoDB item with `data.id`, `userId` (from auth token), `title`, `date`, `orderIndex`, empty `muscleGroup: []`, and sync metadata (`createdAt = timestamp`, `updatedAt = timestamp`). If an item with the same `data.id` already exists, skip (duplicate). |
-| **UPDATE** | Get item by `data.id`. Verify `userId` matches. If `deletedAt` is set, skip. If `updatedAt > change.timestamp`, skip and return conflict with server version. Otherwise, apply changed fields (`title`, `date`, `orderIndex`) and set `updatedAt = change.timestamp`. |
-| **DELETE** | Get item by `data.id`. Verify `userId` matches. If item doesn't exist or `deletedAt` is already set, skip. Otherwise, set `deletedAt = change.timestamp`. All nested children (muscle groups, exercises, logs) are implicitly deleted with the document. |
-
-**CREATE payload:**
-
-```json
-{
-  "id": "w-uuid-1",
-  "title": "Push Day",
-  "date": "2026-02-25",
-  "userId": "user-123",
-  "orderIndex": 0
-}
-```
-
-**UPDATE payload:**
-
-```json
-{
-  "id": "w-uuid-1",
-  "title": "Pull Day",
-  "date": "2026-02-26",
-  "orderIndex": 2
-}
-```
-
-**DELETE payload:**
-
-```json
-{
-  "id": "w-uuid-1"
-}
-```
-
----
-
-#### 5.3.2 Muscle Group
-
-All operations fetch the parent workout document and modify the nested `muscleGroup[]` array.
-
-| Action | Backend Processing |
-|---|---|
-| **CREATE** | Get workout by `data.workoutId`. Verify `userId` matches. If workout is deleted or not found, reject as orphaned. Check that no muscle group with the same `data.id` already exists in the array — if it does, skip. Append the new muscle group object to `muscleGroup[]`. Set `updatedAt = change.timestamp` on the workout. Save. |
-| **UPDATE** | Get workout by `data.workoutId`. Find the muscle group in `muscleGroup[]` by `data.id`. If not found or workout is deleted, skip. If `workout.updatedAt > change.timestamp`, skip and return conflict. Apply changed fields (`title`, `date`, `orderIndex`). Set `updatedAt = change.timestamp` on the workout. Save. |
-| **DELETE** | Get workout by `data.workoutId`. Find the muscle group in `muscleGroup[]` by `data.id`. If not found or workout is deleted, skip. Remove the muscle group (and all its nested exercises and logs) from the array. Set `updatedAt = change.timestamp` on the workout. Save. |
-
-**CREATE payload:**
-
-```json
-{
-  "id": "mg-uuid-1",
-  "workoutId": "w-uuid-1",
-  "title": "Chest",
-  "date": "2026-02-25",
-  "orderIndex": 0
-}
-```
-
-**UPDATE payload:**
-
-```json
-{
-  "id": "mg-uuid-1",
-  "workoutId": "w-uuid-1",
-  "title": "Back",
-  "date": "2026-02-26",
-  "orderIndex": 1
-}
-```
-
-**DELETE payload:**
-
-```json
-{
-  "id": "mg-uuid-1",
-  "workoutId": "w-uuid-1"
-}
-```
-
----
-
-#### 5.3.3 Exercise
-
-Operations get the parent workout by `data.workoutId`, find the muscle group by `data.muscleGroupId`, then operate on the `exercises[]` array.
-
-| Action | Backend Processing |
-|---|---|
-| **CREATE** | Get workout by `data.workoutId`. Find the muscle group by `data.muscleGroupId` in `muscleGroup[]`. Verify `userId` matches. If the workout is deleted or the muscle group is not found, reject as orphaned. Check that no exercise with the same `data.id` already exists — if it does, skip. Append the new exercise object (with empty `log: []`) to the muscle group's `exercises[]`. Set `updatedAt = change.timestamp` on the workout. Save. |
-| **UPDATE** | Get workout by `data.workoutId`. Find the muscle group by `data.muscleGroupId`, then the exercise by `data.id`. If not found or workout is deleted, skip. If `workout.updatedAt > change.timestamp`, skip and return conflict. Apply changed fields (`title`, `orderIndex`). Set `updatedAt = change.timestamp` on the workout. Save. |
-| **DELETE** | Get workout by `data.workoutId`. Find the muscle group by `data.muscleGroupId`, then the exercise by `data.id`. If not found or workout is deleted, skip. Remove the exercise (and all its nested logs) from the `exercises[]` array. Set `updatedAt = change.timestamp` on the workout. Save. |
-
-**CREATE payload:**
-
-```json
-{
-  "id": "ex-uuid-1",
-  "workoutId": "w-uuid-1",
-  "muscleGroupId": "mg-uuid-1",
-  "title": "Bench Press",
-  "orderIndex": 0
-}
-```
-
-**UPDATE payload:**
-
-```json
-{
-  "id": "ex-uuid-1",
-  "workoutId": "w-uuid-1",
-  "muscleGroupId": "mg-uuid-1",
-  "title": "Incline Bench Press",
-  "orderIndex": 2
-}
-```
-
-**DELETE payload:**
-
-```json
-{
-  "id": "ex-uuid-1",
-  "workoutId": "w-uuid-1",
-  "muscleGroupId": "mg-uuid-1"
-}
-```
-
----
-
-#### 5.3.4 Log
-
-Operations get the parent workout by `data.workoutId`, find the muscle group by `data.muscleGroupId`, find the exercise by `data.exerciseId`, then operate on the `log[]` array.
-
-| Action | Backend Processing |
-|---|---|
-| **CREATE** | Get workout by `data.workoutId`. Find the muscle group by `data.muscleGroupId`, then the exercise by `data.exerciseId`. Verify `userId` matches. If the workout is deleted or the exercise is not found, reject as orphaned. Check that no log with the same `data.id` already exists — if it does, skip. Append the new log object to the exercise's `log[]`. Set `updatedAt = change.timestamp` on the workout. Save. |
-| **UPDATE** | Get workout by `data.workoutId`. Find the muscle group by `data.muscleGroupId`, then the exercise by `data.exerciseId`, then the log by `data.id`. If not found or workout is deleted, skip. If `workout.updatedAt > change.timestamp`, skip and return conflict. Apply changed fields (`numberReps`, `maxWeight`). Set `updatedAt = change.timestamp` on the workout. Save. |
-| **DELETE** | Get workout by `data.workoutId`. Find the muscle group by `data.muscleGroupId`, then the exercise by `data.exerciseId`, then the log by `data.id`. If not found or workout is deleted, skip. Remove the log from the `log[]` array. Set `updatedAt = change.timestamp` on the workout. Save. |
-
-**CREATE payload:**
-
-```json
-{
-  "id": "log-uuid-1",
-  "workoutId": "w-uuid-1",
-  "muscleGroupId": "mg-uuid-1",
-  "exerciseId": "ex-uuid-1",
-  "numberReps": 10,
-  "maxWeight": 80,
-  "date": "2026-02-25T10:00:00.000Z"
-}
-```
-
-**UPDATE payload:**
-
-```json
-{
-  "id": "log-uuid-1",
-  "workoutId": "w-uuid-1",
-  "muscleGroupId": "mg-uuid-1",
-  "exerciseId": "ex-uuid-1",
-  "numberReps": 12,
-  "maxWeight": 85
-}
-```
-
-**DELETE payload:**
-
-```json
-{
-  "id": "log-uuid-1",
-  "workoutId": "w-uuid-1",
-  "muscleGroupId": "mg-uuid-1",
-  "exerciseId": "ex-uuid-1"
-}
-```
-
----
-
-#### 5.3.5 Processing Summary
-
-All entity changes funnel through the parent workout document. The general algorithm for processing a single change:
-
-```
-1. Resolve the parent workout (using fields from data payload):
-   - workout → lookup by data.id
-   - muscleGroup → lookup workout by data.workoutId
-   - exercise → lookup workout by data.workoutId, find muscleGroup by data.muscleGroupId
-   - log → lookup workout by data.workoutId, find muscleGroup by data.muscleGroupId,
-            find exercise by data.exerciseId
-
-2. Validate:
-   - Workout exists and belongs to authenticated user
-   - Workout is not soft-deleted
-   - For child entities: parent node exists in the nested structure
-
-3. Check idempotency:
-   - CREATE: skip if entity with same data.id already exists
-   - UPDATE: skip if workout.updatedAt > change.timestamp (return conflict)
-   - DELETE: skip if entity not found
-
-4. Apply mutation:
-   - CREATE: append to parent array
-   - UPDATE: modify fields in-place
-   - DELETE: remove from parent array (cascades nested children)
-
-5. Set workout.updatedAt = change.timestamp
-
-6. Save the workout document back to DynamoDB
-```
+For full details on how the backend processes entity changes (data model, entity processing logic, conflict resolution rules, and payload examples), see [backend-api.md](backend-api.md) — Sections 2, 4, and 5.
 
 ---
 
 ## 6. Conflict Resolution
 
-### 6.1 Strategy: Last-Write-Wins (per workout)
-
-Since the entire workout is stored as a single document, conflict resolution happens at the workout level. The version with the later `updatedAt` timestamp wins.
-
-### 6.2 Conflict Scenarios
-
-| Scenario | Resolution |
-|---|---|
-| CREATE — entity doesn't exist | Insert |
-| CREATE — entity already exists | Skip (duplicate) |
-| UPDATE — parent workout not found | Skip (orphaned) |
-| UPDATE — parent workout deleted | Skip |
-| UPDATE — `workout.updatedAt > change.timestamp` | Server wins — return conflict |
-| UPDATE — `workout.updatedAt <= change.timestamp` | Apply update |
-| DELETE — entity doesn't exist | Skip |
-| DELETE — parent workout deleted | Skip |
-| DELETE — entity exists | Remove from document |
-
-### 6.3 Conflict Resolution on the Backend
-
-```
-For each incoming change:
-  1. Resolve the parent workout document (see Section 5.3.5)
-  2. If action is CREATE:
-     - If entity with same data.id doesn't exist → append to parent array
-     - If entity exists → skip (duplicate create, already applied)
-  3. If action is UPDATE:
-     - If parent workout doesn't exist → skip (orphaned update)
-     - If workout.deletedAt is set → skip (workout was deleted)
-     - If workout.updatedAt > change.timestamp → server wins (skip change, return conflict)
-     - Else → apply update, set workout.updatedAt = change.timestamp
-  4. If action is DELETE:
-     - For workout: if not found or deletedAt already set → skip; else set deletedAt = change.timestamp
-     - For child entities: if not found → skip; else remove from parent array
-     - Set workout.updatedAt = change.timestamp
-```
-
-### 6.4 Client Handling of Conflict Responses
+### 6.1 Client Handling of Conflict Responses
 
 When the server returns conflicts:
 
@@ -889,17 +648,30 @@ IndexedDB has much higher limits than localStorage (typically 50%+ of disk space
 
 **Database:** `replog-db`
 
-| Object Store | Key | Content | Description |
-|---|---|---|---|
-| `data` | `id` (string) | `{ id, workouts: WorkOutGroup[] }` | Existing — UI workout data (unchanged) |
-| `sync_queue` | `id` (string) | `SyncChange` | New — pending changes to push |
-| `sync_meta` | `key` (string) | `{ key, value }` | New — sync state (e.g., `lastSyncedAt`) |
+```mermaid
+erDiagram
+    DATA["data (existing)"] {
+        string id PK "Record ID"
+        array workouts "WorkOutGroup[] — UI workout data"
+    }
+    SYNC_QUEUE["sync_queue (new)"] {
+        string id PK "Change event ID"
+        object change "SyncChange — pending changes to push"
+    }
+    SYNC_META["sync_meta (new)"] {
+        string key PK "e.g. lastSyncedAt"
+        object value "Sync state metadata"
+    }
+```
 
 **Separate storage (unchanged):**
 
-| Storage | Key | Content | Description |
-|---|---|---|---|
-| localStorage | `replog_user_preferences` | `UserPreferences` (JSON) | Device-specific, not synced |
+```mermaid
+erDiagram
+    LOCAL_STORAGE["localStorage"] {
+        string replog_user_preferences "UserPreferences JSON — device-specific, not synced"
+    }
+```
 
 ## Appendix B: New TypeScript Types (Summary)
 
@@ -956,11 +728,30 @@ type SyncResult =
 
 ## Appendix C: Sync Status UI Indicators
 
-| State | Icon / Text | Description |
-|---|---|---|
-| `idle` (no pending) | Checkmark / "Synced" | All changes are synced |
-| `idle` (has pending) | Cloud-off / "Pending changes" | Changes waiting to be synced |
-| `syncing` | Spinner / "Syncing..." | Sync in progress |
-| `error` | Warning / "Sync failed" | Last sync attempt failed |
-| `offline` | Cloud-off / "Offline" | Device is offline |
-| Not authenticated | Hidden | No sync UI shown for anonymous users |
+```mermaid
+stateDiagram-v2
+    [*] --> idle_synced
+    [*] --> idle_pending
+    [*] --> offline
+    [*] --> not_authenticated
+
+    idle_synced --> syncing : Sync triggered
+    idle_pending --> syncing : Sync triggered
+    syncing --> idle_synced : Success
+    syncing --> error : Failure
+    error --> syncing : Retry
+    offline --> syncing : Back online
+
+    idle_synced : idle (no pending) — Checkmark / "Synced"
+    idle_synced : All changes are synced
+    idle_pending : idle (has pending) — Cloud-off / "Pending changes"
+    idle_pending : Changes waiting to be synced
+    syncing : syncing — Spinner / "Syncing..."
+    syncing : Sync in progress
+    error : error — Warning / "Sync failed"
+    error : Last sync attempt failed
+    offline : offline — Cloud-off / "Offline"
+    offline : Device is offline
+    not_authenticated : Not authenticated — Hidden
+    not_authenticated : No sync UI shown for anonymous users
+```
