@@ -37,41 +37,31 @@ Instead of syncing the full current state, the app records **every mutation** (c
 
 ### High-Level Data Flow
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  CLIENT (Angular App)                                           │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌───────────────────┐  │
-│  │  UI / Comps  │───>│  Data        │───>│  IndexedDB        │  │
-│  │              │    │  Services    │    │  (replog-db)       │  │
-│  └──────────────┘    └──────┬───────┘    └───────────────────┘  │
-│                             │                                   │
-│                             │ records mutation                  │
-│                             ▼                                   │
-│                      ┌──────────────┐                           │
-│                      │  Sync Queue  │                           │
-│                      │  (IndexedDB   │                          │
-│                      │  replog-db    │                          │
-│                      │  sync_queue)  │                          │
-│                      └──────┬───────┘                           │
-│                             │                                   │
-│                             │ when online + authenticated       │
-│                             ▼                                   │
-│                      ┌──────────────┐                           │
-│                      │  SyncService │                           │
-│                      └──────┬───────┘                           │
-└─────────────────────────────┼───────────────────────────────────┘
-                              │ HTTPS
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│  BACKEND                                                        │
-│                                                                 │
-│  ┌──────────────┐    ┌──────────────┐    ┌───────────────────┐  │
-│  │  POST /sync  │───>│  Sync Engine │───>│  Database         │  │
-│  │  GET  /sync  │    │  (conflict   │    │  (source of truth │  │
-│  │              │    │   resolution)│    │   for cross-device)│  │
-│  └──────────────┘    └──────────────┘    └───────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph CLIENT["CLIENT (Angular App)"]
+        UI[UI / Components]
+        DS[Data Services]
+        IDB[(IndexedDB<br/>replog-db)]
+        SQ[(Sync Queue<br/>IndexedDB<br/>sync_queue)]
+        SS[SyncService]
+        
+        UI --> DS
+        DS --> IDB
+        DS -->|records mutation| SQ
+        SQ -->|when online +<br/>authenticated| SS
+    end
+    
+    subgraph BACKEND["BACKEND"]
+        API["POST /sync<br/>GET /sync"]
+        SE["Sync Engine<br/>(conflict resolution)"]
+        DB[("Database<br/>(source of truth<br/>for cross-device)")]
+        
+        API --> SE
+        SE --> DB
+    end
+    
+    SS -->|HTTPS| API
 ```
 
 ### Component Responsibilities
@@ -678,57 +668,45 @@ No user-facing conflict resolution UI is needed. Since this is a single-user app
 
 ### 7.1 Normal Sync (push + pull)
 
-```
-Client                                    Server
-  │                                         │
-  │  1. Collect queued changes              │
-  │  2. POST /api/sync/push                 │
-  │  ─────────────────────────────────────> │
-  │                                         │  3. Validate auth
-  │                                         │  4. Process each change
-  │                                         │  5. Resolve conflicts
-  │  <───────────────────────────────────── │
-  │  6. Receive acknowledged IDs +          │
-  │     conflicts                           │
-  │  7. Remove acknowledged changes         │
-  │     from queue                          │
-  │  8. Apply conflict resolutions          │
-  │     locally                             │
-  │                                         │
-  │  9. GET /api/sync/pull                   │
-  │  ─────────────────────────────────────> │
-  │                                         │  10. Return all user
-  │                                         │      workouts
-  │  <───────────────────────────────────── │
-  │  11. Merge server workouts into local   │
-  │      IndexedDB, remove missing entities │
-  │                                         │
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Client: 1. Collect queued changes
+    Client->>Server: 2. POST /api/sync/push
+    Server->>Server: 3. Validate auth
+    Server->>Server: 4. Process each change
+    Server->>Server: 5. Resolve conflicts
+    Server->>Client: 6. Acknowledged IDs + conflicts
+    Client->>Client: 7. Remove acknowledged changes from queue
+    Client->>Client: 8. Apply conflict resolutions locally
+    Client->>Server: 9. GET /api/sync/pull
+    Server->>Server: 10. Return all user workouts
+    Server->>Client: 11. Server workouts
+    Client->>Client: 12. Merge into IndexedDB, remove missing entities
 ```
 
 ### 7.2 First Login on a New Device
 
-```
-Client                                    Server
-  │                                         │
-  │  1. User authenticates                  │
-  │  2. Check: is this the first sync?      │
-  │     (lastSyncedAt === null)             │
-  │                                         │
-  │  3. Has local data?                     │
-  │  ┌─ YES: Push local data first ──────> │
-  │  │  POST /api/sync/push                 │  4. Apply to DB
-  │  │  <────────────────────────────────── │
-  │  │                                      │
-  │  └─ Then pull everything:               │
-  │     GET /api/sync/pull                  │
-  │  ─────────────────────────────────────> │
-  │                                         │  5. Return all user data
-  │  <───────────────────────────────────── │
-  │  6. Merge: for each server entity,      │
-  │     if local doesn't have it → add      │
-  │     if local has it → keep newer        │
-  │     (by comparing timestamps)           │
-  │                                         │
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    
+    Client->>Client: 1. User authenticates
+    Client->>Client: 2. Check: is this the first sync?<br/>(lastSyncedAt === null)
+    
+    alt Has local data
+        Client->>Server: 3. POST /api/sync/push (local data)
+        Server->>Server: 4. Apply to DB
+        Server->>Client: Acknowledged
+    end
+    
+    Client->>Server: 5. GET /api/sync/pull
+    Server->>Server: 6. Return all user data
+    Server->>Client: All workouts
+    Client->>Client: 7. Merge: for each server entity<br/>if local doesn't have it → add<br/>if local has it → keep newer
 ```
 
 ### 7.3 User Signs Up (new account, has local data)
