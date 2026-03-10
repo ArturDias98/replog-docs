@@ -86,7 +86,7 @@ The access token JWT contains the following claims:
 
 - `sub` — User ID (Google subject identifier)
 - `email` — User's email address
-- `displayName` — User's display name (from Google profile)
+- `name` — User's display name (from Google profile)
 - `picture` — User's profile picture URL (from Google profile)
 - `jti` — Unique token identifier
 - `iss` — Issuer (`replog-api`)
